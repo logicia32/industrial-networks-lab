@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 生成物 -- docs/gen_*.py から作り直せるので追跡しない
+docs/figures/
+
+# 記事執筆用の作業ファイル。公開版の記事は Zenn 側が正なので、ここには置かない
+docs/drafts/
+docs/outline.md
+docs/figure_plan.md
+docs/review_*.md

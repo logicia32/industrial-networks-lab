@@ -1,0 +1,21 @@
+# 産業用通信シリーズ 検証済みバージョン (2026-07-28)
+# すべて OSS。ハードウェア不要・費用ゼロ。
+# Python 3.10 以上が必要（型注釈に `X | None` を使っているため）
+
+# --- 第1回 Modbus ---
+# [serial] を付けないと pyserial が入らず、RTU 付録が RuntimeError で落ちる
+pymodbus[serial]==3.14.0   # BSD-3-Clause / pyserial は BSD-3-Clause
+                           # ※3.14.0 で datastore API に破壊的変更あり。ピン必須
+
+# --- 第2回・第3回 CANopen ---
+# [multicast] を外すと発展課題が msgpack 不足で落ちる
+python-can[multicast]==4.6.1   # LGPL-3.0-only
+
+# --- 第4回・第5回 OPC UA ---
+asyncua==2.0.1            # LGPL-3.0-or-later
+
+# --- 図の作成（第3回） ---
+matplotlib==3.10.7        # PSF-based
+
+# 備考: CANopen には canopen(MIT) というライブラリもあるが、このシリーズでは
+#       フレームを1バイトずつ見せたいので使わず、自前で組み立てている。
