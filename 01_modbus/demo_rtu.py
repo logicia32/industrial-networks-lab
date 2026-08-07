@@ -68,8 +68,8 @@ async def main() -> None:
 
     server = ModbusSerialServer(device, port=device_port, baudrate=BAUDRATE,
                                 trace_packet=trace)
-    task = asyncio.create_task(server.serve_forever())
-    await asyncio.sleep(0.5)
+    # demo_tcp.py と同じ理由。開けなければここで止める（create_task だと失敗が届かない）。
+    await server.serve_forever(background=True)
 
     client = AsyncModbusSerialClient(client_port, baudrate=BAUDRATE)
     await client.connect()
@@ -85,7 +85,6 @@ async def main() -> None:
     finally:
         client.close()
         await server.shutdown()
-        task.cancel()
 
     print()
     print("TCP と見比べてください。MBAP ヘッダ（7バイト）が消えて、")

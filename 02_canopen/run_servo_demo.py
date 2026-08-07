@@ -129,85 +129,90 @@ def show_state(master: Master, label: str) -> State:
 def main() -> None:
     servo = Cia402Servo(CHANNEL, node_id=NODE_ID, gain=0.15)
     servo.start()
-    if not servo.ready.wait(timeout=5.0):
-        raise RuntimeError("サーボが起動しない")
+    bus = None
+    try:
+        if not servo.ready.wait(timeout=5.0):
+            raise RuntimeError("サーボが起動しない")
 
-    bus = can.Bus(interface="virtual", channel=CHANNEL)
-    master = Master(bus, NODE_ID)
-    time.sleep(0.05)
+        bus = can.Bus(interface="virtual", channel=CHANNEL)
+        master = Master(bus, NODE_ID)
+        time.sleep(0.05)
 
-    print("=" * 74)
-    print("1. NMT: Pre-operational -> Operational")
-    print("=" * 74)
-    master.nmt_start()
-    time.sleep(0.02)
-    dt = master.sdo_read(*cia402.OD_DEVICE_TYPE)
-    print(f"  SDO read 0x1000 (Device type)      = 0x{dt:08X}")
+        print("=" * 74)
+        print("1. NMT: Pre-operational -> Operational")
+        print("=" * 74)
+        master.nmt_start()
+        time.sleep(0.02)
+        dt = master.sdo_read(*cia402.OD_DEVICE_TYPE)
+        print(f"  SDO read 0x1000 (Device type)      = 0x{dt:08X}")
 
-    print()
-    print("=" * 74)
-    print("2. CiA 402 状態機械: 0x06 -> 0x07 -> 0x0F")
-    print("=" * 74)
-    show_state(master, "起動直後")
-    for cw, name in ((cia402.CW_SHUTDOWN, "Shutdown"),
-                     (cia402.CW_SWITCH_ON, "Switch on"),
-                     (cia402.CW_ENABLE_OPERATION, "Enable operation")):
-        master.sdo_write(*cia402.OD_CONTROLWORD, cw, 2)
-        show_state(master, f"Controlword = 0x{cw:02X} ({name})")
+        print()
+        print("=" * 74)
+        print("2. CiA 402 状態機械: 0x06 -> 0x07 -> 0x0F")
+        print("=" * 74)
+        show_state(master, "起動直後")
+        for cw, name in ((cia402.CW_SHUTDOWN, "Shutdown"),
+                         (cia402.CW_SWITCH_ON, "Switch on"),
+                         (cia402.CW_ENABLE_OPERATION, "Enable operation")):
+            master.sdo_write(*cia402.OD_CONTROLWORD, cw, 2)
+            show_state(master, f"Controlword = 0x{cw:02X} ({name})")
 
-    print()
-    print("=" * 74)
-    print("3. 動作モードを csp (Cyclic synchronous position) にする")
-    print("=" * 74)
-    master.sdo_write(*cia402.OD_MODES_OF_OPERATION, cia402.MODE_CSP, 1)
-    mode = master.sdo_read(*cia402.OD_MODES_DISPLAY, signed=True)
-    print(f"  SDO write 0x6060 = {cia402.MODE_CSP}  ->  0x6061 (実際のモード) = {mode}  (csp)")
+        print()
+        print("=" * 74)
+        print("3. 動作モードを csp (Cyclic synchronous position) にする")
+        print("=" * 74)
+        master.sdo_write(*cia402.OD_MODES_OF_OPERATION, cia402.MODE_CSP, 1)
+        mode = master.sdo_read(*cia402.OD_MODES_DISPLAY, signed=True)
+        print(f"  SDO write 0x6060 = {cia402.MODE_CSP}  ->  0x6061 (実際のモード) = {mode}  (csp)")
 
-    print()
-    print("=" * 74)
-    print("4. SYNC 10ms 周期で目標位置を送り、追従を記録する")
-    print("=" * 74)
-    curve: list[tuple[float, int, int]] = []
-    target = 0
-    t0 = time.monotonic()
-    misses = 0
-    for i in range(60):
-        if i == 5:
-            target = 10000        # ステップ入力
-        master.send_rpdo1(target, cia402.CW_ENABLE_OPERATION)
-        if not master.sync_and_collect():
-            misses += 1
-        t = time.monotonic() - t0
-        curve.append((t, target, master.last_actual))
-        if i % 10 == 0 or i == 59:
-            print(f"  t={t:5.3f}s  target={target:6d}  actual={master.last_actual:6d}"
-                  f"  status=0x{master.last_status:04X}")
-        # 周期は絶対時刻で刻む。sleep(0.010) だと処理時間ぶん毎回ずれていく
-        time.sleep(max(0.0, t0 + (i + 1) * SYNC_PERIOD - time.monotonic()))
+        print()
+        print("=" * 74)
+        print("4. SYNC 10ms 周期で目標位置を送り、追従を記録する")
+        print("=" * 74)
+        curve: list[tuple[float, int, int]] = []
+        target = 0
+        t0 = time.monotonic()
+        misses = 0
+        for i in range(60):
+            if i == 5:
+                target = 10000        # ステップ入力
+            master.send_rpdo1(target, cia402.CW_ENABLE_OPERATION)
+            if not master.sync_and_collect():
+                misses += 1
+            t = time.monotonic() - t0
+            curve.append((t, target, master.last_actual))
+            if i % 10 == 0 or i == 59:
+                print(f"  t={t:5.3f}s  target={target:6d}  actual={master.last_actual:6d}"
+                      f"  status=0x{master.last_status:04X}")
+            # 周期は絶対時刻で刻む。sleep(0.010) だと処理時間ぶん毎回ずれていく
+            time.sleep(max(0.0, t0 + (i + 1) * SYNC_PERIOD - time.monotonic()))
 
-    print(f"\n  取りこぼした SYNC 応答: {misses} / 60")
+        print(f"\n  取りこぼした SYNC 応答: {misses} / 60")
 
-    print()
-    print("=" * 74)
-    print("5. 同じ 0x07 が、今度は「運転停止」になる")
-    print("=" * 74)
-    show_state(master, "現在")
-    master.sdo_write(*cia402.OD_CONTROLWORD, cia402.CW_SWITCH_ON, 2)
-    show_state(master, "Controlword = 0x07 (Disable operation)")
-    print("  → Ready to switch on から書けば「投入」、Operation enabled から書けば「停止」。")
-    print("    同じビット列が、受け手の状態によって正反対の意味になる。")
+        print()
+        print("=" * 74)
+        print("5. 同じ 0x07 が、今度は「運転停止」になる")
+        print("=" * 74)
+        show_state(master, "現在")
+        master.sdo_write(*cia402.OD_CONTROLWORD, cia402.CW_SWITCH_ON, 2)
+        show_state(master, "Controlword = 0x07 (Disable operation)")
+        print("  → Ready to switch on から書けば「投入」、Operation enabled から書けば「停止」。")
+        print("    同じビット列が、受け手の状態によって正反対の意味になる。")
 
-    print()
-    print("  --- 状態遷移の記録 ---")
-    snap = servo.snapshot()      # 属性を直接読まず、ロック越しにコピーを取る
-    for cw, old, new in snap["transitions"]:
-        print(f"    0x{cw:04X} : {old.value:<22} -> {new.value}")
-    if snap["malformed_frames"]:
-        print(f"\n  捨てた不正フレーム: {snap['malformed_frames']}")
+        print()
+        print("  --- 状態遷移の記録 ---")
+        snap = servo.snapshot()      # 属性を直接読まず、ロック越しにコピーを取る
+        for cw, old, new in snap["transitions"]:
+            print(f"    0x{cw:04X} : {old.value:<22} -> {new.value}")
+        if snap["malformed_frames"]:
+            print(f"\n  捨てた不正フレーム: {snap['malformed_frames']}")
 
-    servo.stop()
-    servo.join(timeout=1.0)     # 内部名の衝突を直したので join() がちゃんと使える
-    bus.shutdown()
+    finally:
+        # 例外で抜けても、スレッドとバスは必ず畳む。canmon.py と同じ作法。
+        servo.stop()
+        servo.join(timeout=1.0)   # 内部名の衝突を直したので join() が使える
+        if bus is not None:
+            bus.shutdown()
 
     _plot(curve)
 

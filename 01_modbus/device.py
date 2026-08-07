@@ -62,18 +62,33 @@ async def main() -> None:
         return data
 
     server = make_server(args.host, args.port, trace if args.trace else None)
+    # 先に listen まで済ませる。「待ち受けています」と言った直後に bind 失敗の
+    # traceback が出るのを避けるため、表示より前に確定させる。
+    try:
+        await server.serve_forever(background=True)
+    except RuntimeError:
+        raise SystemExit(
+            f"{args.host}:{args.port} で待ち受けられませんでした。"
+            f"ほかのプログラムが使っているか、1024 未満のポートで権限が足りません。")
+
     print(f"Modbus TCP device listening on {args.host}:{args.port} "
           f"(device_id={DEVICE_ID})")
     print("  入力レジスタ 0 = 温度 [0.1 degC] / 保持レジスタ 0 = 目標温度 [0.1 degC]")
     print("  Ctrl-C で停止")
     try:
-        await server.serve_forever()
-    except asyncio.CancelledError:
-        pass
+        # 止められるまで待つだけ。実際の受信は serve_forever が回している。
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        print("\nstopped")
+        await server.shutdown()
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nstopped")
+        # Ctrl-C はまず main タスクの cancel として届き、後始末と停止メッセージは
+        # main() の finally が済ませている。asyncio.run が最後に投げ直してくる
+        # KeyboardInterrupt は、traceback を見せないためにここで受け止めるだけ。
+        pass

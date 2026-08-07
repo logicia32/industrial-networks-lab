@@ -25,9 +25,18 @@ COB_SYNC = 0x080
 ABORT_CMD_INVALID = 0x05040001       # コマンド指定子が不正／未対応
 ABORT_NO_SUCH_OBJECT = 0x06020000    # そのオブジェクトは無い
 ABORT_LENGTH_MISMATCH = 0x06070010   # データ長が型と合わない
+ABORT_READ_ONLY = 0x06010002         # 読み出し専用のオブジェクトへ書こうとした
 
 SDO_FRAME_LEN = 8                    # SDO は常に8バイト
 RPDO1_LEN = 6                        # 0x607A(4) + 0x6040(2)
+
+# 外から書けないオブジェクト。デバイス自身は更新するが、SDO の書き込みは断る。
+READ_ONLY = frozenset({
+    cia402.OD_DEVICE_TYPE,       # const
+    cia402.OD_STATUSWORD,        # サーボが自分の状態を載せるところ
+    cia402.OD_POSITION_ACTUAL,   # 現在位置は測定値
+    cia402.OD_MODES_DISPLAY,     # 実際に効いているモード（指定は 0x6060 側）
+})
 
 
 class Cia402Servo(threading.Thread):
@@ -134,6 +143,11 @@ class Cia402Servo(threading.Thread):
                 entry = self._read_od(index, sub)
                 if entry is None:
                     self._sdo_abort(bus, index, sub, ABORT_NO_SUCH_OBJECT)
+                    return
+                if (index, sub) in READ_ONLY:
+                    # 実機は RO のオブジェクトへの書き込みを必ず断る。ここを通すと
+                    # Statusword を外から書き換えられ、状態と表示がずれる。
+                    self._sdo_abort(bus, index, sub, ABORT_READ_ONLY)
                     return
                 size = 4 - ((ccs >> 2) & 0x03)
                 if size != entry[1]:                      # OD の定義幅と一致するか

@@ -42,16 +42,17 @@ for y, direction, label in sig:
            weight="medium")
 
 # --- motor ---
-k.circle(ax, 5.5, 2.9, 0.95, fc="white", ec=k.INK, lw=1.6)
-k.circle(ax, 5.5, 2.9, 0.28, fc=k.TINT_GREY, ec=k.INK, lw=1.2)
-k.text(ax, 5.5, 1.55, "Servo motor", color=k.INK, fontsize=9.5, weight="bold")
+# ドライブ枠との間は "power + encoder" の置き場。文字幅ぶんの余白が要るので離す。
+k.circle(ax, 5.8, 2.9, 0.95, fc="white", ec=k.INK, lw=1.6)
+k.circle(ax, 5.8, 2.9, 0.28, fc=k.TINT_GREY, ec=k.INK, lw=1.2)
+k.text(ax, 5.8, 1.55, "Servo motor", color=k.INK, fontsize=9.5, weight="bold")
 
 # drive -> motor cable
-k.arrow(ax, (3.55, 2.9), (4.5, 2.9), color=k.INK2, lw=1.7, style="-|>")
-k.text(ax, 4.02, 3.25, "power +\nencoder", color=k.INK2, fontsize=7.5)
+k.arrow(ax, (3.55, 2.9), (4.8, 2.9), color=k.INK2, lw=1.7, style="-|>")
+k.text(ax, 4.2, 3.25, "power +\nencoder", color=k.INK2, fontsize=7.5)
 
 # shaft
-ax.plot([6.45, 7.55], [2.9, 2.9], color=k.INK, lw=3.5, solid_capstyle="round",
+ax.plot([6.75, 7.55], [2.9, 2.9], color=k.INK, lw=3.5, solid_capstyle="round",
         zorder=2)
 
 # --- rotary table / load ---

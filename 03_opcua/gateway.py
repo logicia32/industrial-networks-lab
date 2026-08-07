@@ -42,6 +42,7 @@ MODBUS_HOST, MODBUS_PORT, MODBUS_DEVICE_ID = "127.0.0.1", 5020, 1
 CAN_CHANNEL, CAN_NODE_ID = "gateway-can", 1
 CAN_PERIOD = 0.010          # 10 ms
 OPCUA_PERIOD = 0.05         # 50 ms
+MODBUS_DEADLINE = 1.0       # Modbus 1往復に許す時間。相手が黙っていても周期を守る
 CAN_STALE_LIMIT = 5         # TPDO をこの回数続けて取りこぼしたら、値を Bad にする
 
 # --- 現場の番地（この対応表がゲートウェイの本体） ---
@@ -111,8 +112,9 @@ class CanWorker(threading.Thread):
                         self._shared["statusword"] = master.last_status
                         self._shared["misses"] = 0
                     else:
-                        # TPDO が返らなかった周期。前回の値をそのまま出すと、
-                        # 止まっている軸が動いているように見えてしまう。
+                        # TPDO が返らなかった周期。前回の値をそのまま出し続けると
+                        # 値が固まるので、動いている軸が止まって見えるし、
+                        # 途切れたリンクの向こうのデータが生きているようにも見える。
                         self._shared["misses"] += 1
                 i += 1
                 time.sleep(max(0.0, t0 + i * CAN_PERIOD - time.monotonic()))
@@ -140,90 +142,140 @@ async def set_bad(node, code: int) -> None:
 async def main() -> None:
     can_worker = CanWorker()
     can_worker.start()
-    if not can_worker.ready.wait(timeout=10.0):
-        raise RuntimeError("CAN スレッドが起動しませんでした")
-    if can_worker.error:
-        raise RuntimeError(can_worker.error)
+    modbus = None
+    try:
+        if not can_worker.ready.wait(timeout=10.0):
+            raise RuntimeError("CAN スレッドが起動しませんでした")
+        if can_worker.error:
+            raise RuntimeError(can_worker.error)
 
-    server = Server()
-    await server.init()
-    server.set_endpoint(ENDPOINT)
-    server.set_server_name("Plant Gateway")
-    idx = await server.register_namespace(NAMESPACE)
+        server = Server()
+        await server.init()
+        server.set_endpoint(ENDPOINT)
+        server.set_server_name("Plant Gateway")
+        idx = await server.register_namespace(NAMESPACE)
 
-    plant = await server.nodes.objects.add_object(idx, "Plant")
+        plant = await server.nodes.objects.add_object(idx, "Plant")
 
-    sensor = await plant.add_object(idx, "TemperatureSensor")
-    n_temp = await sensor.add_variable(
-        idx, "Temperature", 0.0, varianttype=ua.VariantType.Double)
-    n_setpoint = await sensor.add_variable(
-        idx, "Setpoint", 0.0, varianttype=ua.VariantType.Double)
-    await n_setpoint.set_writable()
+        sensor = await plant.add_object(idx, "TemperatureSensor")
+        n_temp = await sensor.add_variable(
+            idx, "Temperature", 0.0, varianttype=ua.VariantType.Double)
+        n_setpoint = await sensor.add_variable(
+            idx, "Setpoint", 0.0, varianttype=ua.VariantType.Double)
+        await n_setpoint.set_writable()
 
-    axis = await plant.add_object(idx, "AxisX")
-    n_actual = await axis.add_variable(
-        idx, "ActualPosition", 0, varianttype=ua.VariantType.Int32)
-    n_target = await axis.add_variable(
-        idx, "TargetPosition", 0, varianttype=ua.VariantType.Int32)
-    n_status = await axis.add_variable(
-        idx, "Statusword", 0, varianttype=ua.VariantType.UInt16)
-    await n_target.set_writable()
+        axis = await plant.add_object(idx, "AxisX")
+        n_actual = await axis.add_variable(
+            idx, "ActualPosition", 0, varianttype=ua.VariantType.Int32)
+        n_target = await axis.add_variable(
+            idx, "TargetPosition", 0, varianttype=ua.VariantType.Int32)
+        n_status = await axis.add_variable(
+            idx, "Statusword", 0, varianttype=ua.VariantType.UInt16)
+        await n_target.set_writable()
 
-    modbus = AsyncModbusTcpClient(MODBUS_HOST, port=MODBUS_PORT, timeout=0.5)
-    await modbus.connect()
+        modbus = AsyncModbusTcpClient(MODBUS_HOST, port=MODBUS_PORT, timeout=0.5)
+        await modbus.connect()
 
-    print(f"OPC UA gateway listening on {ENDPOINT}")
-    print(f"  namespace {NAMESPACE} -> ns={idx}")
-    print(f"  Modbus  {MODBUS_HOST}:{MODBUS_PORT} -> Plant/TemperatureSensor")
-    print(f"  CANopen node {CAN_NODE_ID} (virtual) -> Plant/AxisX")
-    print("  Ctrl-C で停止")
+        print(f"OPC UA gateway listening on {ENDPOINT}")
+        print(f"  namespace {NAMESPACE} -> ns={idx}")
+        print(f"  Modbus  {MODBUS_HOST}:{MODBUS_PORT} -> Plant/TemperatureSensor")
+        print(f"  CANopen node {CAN_NODE_ID} (virtual) -> Plant/AxisX")
+        print("  Ctrl-C で停止")
 
-    last_setpoint = None
-    async with server:
-        while True:
-            # --- Modbus 側 ---------------------------------------------
-            try:
-                rr = await modbus.read_input_registers(
-                    MB_IR_TEMPERATURE, count=1, device_id=MODBUS_DEVICE_ID)
-                if rr.isError():
-                    # 例外応答 = 相手は生きているが、この要求は通らない
-                    await set_bad(n_temp, ua.StatusCodes.BadConfigurationError)
-                else:
-                    await n_temp.write_value(rr.registers[0] / 10.0)
-            except Exception:
-                # 無応答 = 相手が見えない
-                await set_bad(n_temp, ua.StatusCodes.BadCommunicationError)
+        # 起動時に現場の目標温度を読んで、OPC UA 側の初期値をそれに合わせる。
+        # これをしないと、まだ誰も書いていない初期値 0.0 を「変化した」と見なして、
+        # 起動しただけで現場の設定値を 0 に落としてしまう。
+        try:
+            rq = await asyncio.wait_for(
+                modbus.read_holding_registers(MB_HR_SETPOINT, count=1,
+                                              device_id=MODBUS_DEVICE_ID),
+                timeout=MODBUS_DEADLINE)
+            last_setpoint = None if rq.isError() else rq.registers[0] / 10.0
+        except Exception:
+            last_setpoint = None
+        if last_setpoint is None:
+            # 現場が読めないうちは、こちらから書きに行かない。
+            # 手元の値を「同期済み」と見なしておけば、余計な書き込みが出ない。
+            last_setpoint = await n_setpoint.read_value()
+        else:
+            await n_setpoint.write_value(last_setpoint)
 
-            # OPC UA から書かれた目標温度を Modbus に流す
-            dv = await n_setpoint.read_data_value(raise_on_bad_status=False)
-            if dv.Value.Value is not None and dv.Value.Value != last_setpoint:
-                last_setpoint = dv.Value.Value
+        pending = None      # 現場へまだ書けていない目標温度
+        async with server:
+            while True:
+                # --- Modbus 側 ---------------------------------------------
                 try:
-                    await modbus.write_register(
-                        MB_HR_SETPOINT, int(last_setpoint * 10),
-                        device_id=MODBUS_DEVICE_ID)
+                    # 時間を切らないと、繋がるが黙っている相手や再接続待ちで
+                    # ここが返らず、CAN 側の更新まで巻き込んで止まる。
+                    rr = await asyncio.wait_for(
+                        modbus.read_input_registers(
+                            MB_IR_TEMPERATURE, count=1,
+                            device_id=MODBUS_DEVICE_ID),
+                        timeout=MODBUS_DEADLINE)
+                    if rr.isError():
+                        # 例外応答 = 相手は生きているが、この要求は通らない
+                        await set_bad(n_temp, ua.StatusCodes.BadConfigurationError)
+                    else:
+                        await n_temp.write_value(rr.registers[0] / 10.0)
                 except Exception:
-                    pass
+                    # 無応答 = 相手が見えない
+                    await set_bad(n_temp, ua.StatusCodes.BadCommunicationError)
 
-            # --- CANopen 側 --------------------------------------------
-            snap = can_worker.snapshot()
-            if not can_worker.is_alive() or snap["misses"] >= CAN_STALE_LIMIT:
-                # TPDO が続けて返っていない。手元にあるのは古い値なので、
-                # 現在値のふりをさせない。Modbus 側と同じ扱いにする。
-                await set_bad(n_actual, ua.StatusCodes.BadCommunicationError)
-                await set_bad(n_status, ua.StatusCodes.BadCommunicationError)
-            else:
-                await n_actual.write_value(
-                    ua.Variant(snap["actual"], ua.VariantType.Int32))
-                await n_status.write_value(
-                    ua.Variant(snap["statusword"], ua.VariantType.UInt16))
+                # OPC UA から書かれた目標温度を Modbus に流す。
+                # 指令は pending に持つ。ノードの値を頼りにできないのは、Bad を
+                # 付けると asyncua が値を落とす（読み直すと None になる）ため。
+                # 書けたときだけ last_setpoint を確定させる。先に更新してしまうと、
+                # 失敗した書き込みが二度と再送されず、指令が黙って消える。
+                dv = await n_setpoint.read_data_value(raise_on_bad_status=False)
+                if dv.Value.Value is not None:
+                    pending = dv.Value.Value
+                if pending is not None and pending != last_setpoint:
+                    try:
+                        rq = await asyncio.wait_for(
+                            modbus.write_register(MB_HR_SETPOINT, int(pending * 10),
+                                                  device_id=MODBUS_DEVICE_ID),
+                            timeout=MODBUS_DEADLINE)
+                        # 例外応答は送出されず戻り値で返る。見ないと失敗が消える。
+                        code = (ua.StatusCodes.BadConfigurationError
+                                if rq.isError() else None)
+                    except Exception:
+                        code = ua.StatusCodes.BadCommunicationError
+                    if code is None:
+                        last_setpoint = pending
+                        await n_setpoint.write_value(pending)   # Good に戻す
+                        pending = None
+                    else:
+                        # 現場に届いていないことを読み手に見せる。pending は
+                        # 残るので、次の周期でもう一度送りに行く。
+                        await set_bad(n_setpoint, code)
 
-            # OPC UA から書かれた目標位置を CAN スレッドに渡す
-            dv = await n_target.read_data_value(raise_on_bad_status=False)
-            if dv.Value.Value is not None:
-                can_worker.set_target(dv.Value.Value)
+                # --- CANopen 側 --------------------------------------------
+                snap = can_worker.snapshot()
+                if not can_worker.is_alive() or snap["misses"] >= CAN_STALE_LIMIT:
+                    # TPDO が続けて返っていない。手元にあるのは古い値なので、
+                    # 現在値のふりをさせない。Modbus 側と同じ扱いにする。
+                    await set_bad(n_actual, ua.StatusCodes.BadCommunicationError)
+                    await set_bad(n_status, ua.StatusCodes.BadCommunicationError)
+                else:
+                    await n_actual.write_value(
+                        ua.Variant(snap["actual"], ua.VariantType.Int32))
+                    await n_status.write_value(
+                        ua.Variant(snap["statusword"], ua.VariantType.UInt16))
 
-            await asyncio.sleep(OPCUA_PERIOD)
+                # OPC UA から書かれた目標位置を CAN スレッドに渡す
+                dv = await n_target.read_data_value(raise_on_bad_status=False)
+                if dv.Value.Value is not None:
+                    can_worker.set_target(dv.Value.Value)
+
+                await asyncio.sleep(OPCUA_PERIOD)
+    finally:
+        # 例外で抜けても、CAN スレッドと Modbus 接続は必ず畳む。
+        # ここが無いと CanWorker.stop() は誰からも呼ばれず、run() の finally
+        # （サーボの停止と bus.shutdown）も一度も走らない。
+        can_worker.stop()
+        can_worker.join(timeout=2.0)
+        if modbus is not None:
+            modbus.close()
 
 
 if __name__ == "__main__":

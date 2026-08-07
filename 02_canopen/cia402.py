@@ -108,7 +108,10 @@ COMMAND_PATTERNS = [
     (0x80, 0x80, Command.FAULT_RESET),
     (0x8F, 0x0F, Command.ENABLE_OPERATION),
     (0x8F, 0x07, Command.SWITCH_ON),        # ← Disable operation と同じビット列
-    (0x8F, 0x06, Command.SHUTDOWN),
+    # Shutdown だけ bit3 が don't care なので、マスクは 0x8F ではなく 0x87。
+    # 0x8F にすると bit3 を立てたまま Shutdown する実機のマスタ（0x0E など）を
+    # 取りこぼす。don't care は Statusword 側だけの話ではない。
+    (0x87, 0x06, Command.SHUTDOWN),
     (0x86, 0x02, Command.QUICK_STOP),
     (0x82, 0x00, Command.DISABLE_VOLTAGE),
 ]

@@ -51,8 +51,14 @@ async def main() -> None:
             await asyncio.sleep(0.15)
             dv = await n_actual.read_data_value(raise_on_bad_status=False)
             st = await n_status.read_data_value(raise_on_bad_status=False)
-            print(f"    ActualPosition = {dv.Value.Value:6d}   "
-                  f"Statusword = 0x{st.Value.Value:04X}")
+            # Bad のとき値は None になる。数値の書式をそのまま当てると
+            # TypeError で落ちるので、信用できないことを表示に出す。
+            if dv.Value.Value is None or st.Value.Value is None:
+                print(f"    ActualPosition = {'---':>6}   Statusword = ------   "
+                      f"({dv.StatusCode.name})")
+            else:
+                print(f"    ActualPosition = {dv.Value.Value:6d}   "
+                      f"Statusword = 0x{st.Value.Value:04X}")
 
         print()
         print("--> 最終状態")

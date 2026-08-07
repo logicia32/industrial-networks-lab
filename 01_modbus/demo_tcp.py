@@ -29,8 +29,15 @@ async def main() -> None:
     device = SimDevice(DEVICE_ID, simdata=(co, di, hr, ir))
 
     server = ModbusTcpServer(device, address=(HOST, PORT), trace_packet=trace)
-    task = asyncio.create_task(server.serve_forever())
-    await asyncio.sleep(0.5)
+    # background=True は listen まで済ませてから戻る。ここで失敗すれば例外が上がるので、
+    # 「サーバが立っていないのに気づかないまま、たまたま同じポートにいる別の機器へ
+    # 繋いでしまう」事故を防げる。create_task だと失敗が誰にも届かない。
+    try:
+        await server.serve_forever(background=True)
+    except RuntimeError:
+        raise SystemExit(
+            f"{HOST}:{PORT} を使えませんでした。ほかのプログラムが使っていないか"
+            f"確認してください（このシリーズでは 01_modbus/device.py が同じポートを使います）。")
 
     client = AsyncModbusTcpClient(HOST, port=PORT)
     await client.connect()
@@ -54,7 +61,6 @@ async def main() -> None:
     finally:
         client.close()
         await server.shutdown()
-        task.cancel()
 
 
 if __name__ == "__main__":
