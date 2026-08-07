@@ -31,9 +31,10 @@ for x, v, ec in zip(cx, vals, edges):
           fontsize=13, weight="bold")
 
 k.arrow(ax, (3.2, rowy + 0.47), (5.0, rowy + 0.47), color=k.MUTED, lw=1.6)
-k.text(ax, 4.1, rowy + 0.95, "drop 4xxxx prefix", fontsize=8.5, color=k.INK2)
+# 矢印の上に置く。下げすぎると右隣の枠の角に乗る
+k.text(ax, 4.05, rowy + 1.20, "drop 4xxxx prefix", fontsize=8, color=k.INK2)
 k.arrow(ax, (7.0, rowy + 0.47), (8.8, rowy + 0.47), color=k.SERIES[1], lw=2.0)
-k.text(ax, 7.9, rowy + 0.95, "− 1", fontsize=12, color=k.SERIES[1],
+k.text(ax, 7.9, rowy + 1.15, "− 1", fontsize=12, color=k.SERIES[1],
        weight="bold")
 
 # secondary example row (fainter)
@@ -46,9 +47,9 @@ k.arrow(ax, (3.2, row2 + 0.45), (5.0, row2 + 0.45), color=k.GRID, lw=1.4)
 k.arrow(ax, (7.0, row2 + 0.45), (8.8, row2 + 0.45), color=k.GRID, lw=1.4)
 
 # vendor-specific note
-k.box(ax, 0.5, 0.35, 11.0, 0.9,
+k.box(ax, 0.3, 0.35, 11.4, 0.9,
       "Zero-based vs one-based mapping is vendor specific  —  confirm it in the device manual",
-      fc=k.TINT_GREY, ec=k.AXIS, tc=k.INK2, fontsize=9, rounding=0.1)
+      fc=k.TINT_GREY, ec=k.AXIS, tc=k.INK2, fontsize=8.5, rounding=0.1)
 
 k.save(fig, OUT)
 print("wrote", OUT)

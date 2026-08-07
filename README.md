@@ -29,6 +29,7 @@ Zenn の連載「産業用通信をハードなしで学ぶ」（全5回）で�
 | `03_opcua/gateway.py` | Modbus と CANopen を OPC UA で束ねるゲートウェイ。asyncio 2本 + スレッド1本の構成 |
 | `03_opcua/gw_client.py` | ゲートウェイに OPC UA で繋いで、その先のサーボを動かす |
 | `docs/gen_*.py`, `docs/figkit.py`, `figstyle.py` | 記事の図を書き出すスクリプトと共通スタイル |
+| `docs/check_figures.py` | 図の文字はみ出し・重なりを bbox の測定で検出する。目視では取りこぼすので、図を直したらこれを通す |
 
 ## 走らせ方
 
@@ -62,6 +63,9 @@ python3 -m venv .venv                                # Windows: py -m venv .venv
 
 # 記事の図を作り直す（docs/figures/ に書き出す）
 ./.venv/bin/python docs/gen_modbus_frame_overlay.py
+
+# 図の文字はみ出し・重なりを測る（PNG は書き換えない。0 件で正常）
+./.venv/bin/python docs/check_figures.py
 ```
 
 ## 出てくるもの

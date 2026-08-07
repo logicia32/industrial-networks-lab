@@ -16,9 +16,9 @@ k.title(ax, 0.2, 6.95, "Same PDU, two wrappers")
 top_y, bot_y, bh = 4.4, 1.8, 1.15
 FC_X, FC_W = 5.0, 1.25          # FC:   5.00 .. 6.25
 DAT_X, DAT_W = 6.35, 2.95       # Data: 6.35 .. 9.30
-ADDR_X, ADDR_W = 3.4, 1.5       # addr: 3.40 .. 4.90
+ADDR_X, ADDR_W = 3.3, 1.6       # addr: 3.30 .. 4.90（"Slave addr" の幅に余白を持たせる）
 CRC_X, CRC_W = 9.4, 1.5         # CRC:  9.40 .. 10.90
-MBAP_X, MBAP_W = 1.55, 3.35     # MBAP: 1.55 .. 4.90
+MBAP_X, MBAP_W = 2.1, 2.8       # MBAP: 2.10 .. 4.90（左の "TCP (Ethernet)" を避ける）
 
 # --- highlighted PDU band (sits in the gaps, behind the boxes) ---
 k.box(ax, 4.93, bot_y - 0.35, 4.44, (top_y + bh) - (bot_y - 0.35) + 0.35,
@@ -58,7 +58,7 @@ k.arrow(ax, (CRC_X + CRC_W / 2.0, top_y - 0.05),
         color=k.SERIES[1], lw=1.5, style="-|>")
 
 # MBAP contents footnote
-k.text(ax, (MBAP_X + MBAP_W) / 2.0, bot_y - 0.55,
+k.text(ax, MBAP_X + MBAP_W / 2.0, bot_y - 0.55,
        "MBAP: transaction id, protocol id, length, unit id",
        color=k.INK2, fontsize=8, ha="center")
 

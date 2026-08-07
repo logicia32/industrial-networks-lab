@@ -36,7 +36,7 @@ for i in range(8):
     tx = 1.3 + i * 0.44
     k.box(ax, tx, 1.55, 0.34, 0.34, "", fc=k.SURFACE, ec=k.AXIS, lw=0.9,
           rounded=False)
-k.text(ax, 3.0, 1.98, "I/O terminals", color=k.INK2, fontsize=8)
+k.text(ax, 3.0, 2.05, "I/O terminals", color=k.INK2, fontsize=8)
 
 # --- ports on the right edge ---
 k.box(ax, 4.95, 3.55, 0.72, 0.6, "485", fc="white", ec=k.SERIES[1], tc=k.INK,
@@ -59,15 +59,16 @@ k.text(ax, 9.85, 3.9, "Modbus\nmaster", color="#c9d4e0", fontsize=8.5,
 ax.add_patch(Polygon([(8.0, 3.0), (11.7, 3.0), (11.35, 2.5), (8.35, 2.5)],
                     closed=True, facecolor=BODY, edgecolor=k.INK, lw=1.4,
                     zorder=2))
-k.text(ax, 9.85, 2.1, "PC / HMI  (Modbus master)", color=k.INK, fontsize=9.5,
+k.text(ax, 9.85, 1.8, "PC / HMI  (Modbus master)", color=k.INK, fontsize=9.5,
        weight="bold")
 
 # --- wiring (attach to laptop body, keep labels clear of it) ---
 k.arrow(ax, (5.72, 3.85), (8.05, 3.75), color=k.SERIES[1], lw=1.8, style="-")
 k.arrow(ax, (5.72, 2.85), (8.05, 3.15), color=k.SERIES[2], lw=1.8, style="-")
-k.text(ax, 6.85, 4.15, "Modbus RTU  (RS-485)", color=k.SERIES[1], fontsize=8.5,
+# 機器と PC のあいだは 5.72..8.05 しかない。1行だと PC の絵に食い込むので2行にする
+k.text(ax, 6.88, 4.45, "Modbus RTU\n(RS-485)", color=k.SERIES[1], fontsize=8.5,
        weight="bold")
-k.text(ax, 6.85, 2.55, "Modbus TCP  (Ethernet)", color=k.SERIES[2],
+k.text(ax, 6.80, 2.40, "Modbus TCP\n(Ethernet)", color=k.SERIES[2],
        fontsize=8.5, weight="bold")
 
 k.save(fig, OUT)

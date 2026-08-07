@@ -26,7 +26,8 @@ layers = [
         (7.0, 2.6, "CANopen\n(CAN bus)", k.SERIES[1]),
     ]),
     (5.6, "Gateway", [
-        (5.55, 5.6, "Gateway  —  OPC UA server (address space)", k.SERIES[2]),
+        # 文字幅ぶんの余白を持たせる（帯は 1.85..9.25 なので 6.6 まで広げられる）
+        (5.55, 6.6, "Gateway  —  OPC UA server (address space)", k.SERIES[2]),
     ]),
     (8.0, "IT / Cloud", [
         (4.0, 2.6, "OPC UA client", k.SERIES[2]),
@@ -57,7 +58,8 @@ pills = [
     (5.7, 3.9, k.TINT_GREEN, k.SERIES[2], "Articles 4-5\nOPC UA / gateway"),
 ]
 for py, ph, fc, ec, label in pills:
-    k.box(ax, 9.7, py, 2.15, ph, label, fc=fc, ec=ec, tc=k.INK, fontsize=9,
+    # 帯の右端は 9.25。"Articles 4-5 / OPC UA / gateway" が収まる幅を確保する
+    k.box(ax, 9.4, py, 2.55, ph, label, fc=fc, ec=ec, tc=k.INK, fontsize=8.5,
           weight="bold", rounding=0.12)
 
 k.save(fig, OUT)
