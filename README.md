@@ -6,7 +6,7 @@ Zenn の連載「産業用通信をハードなしで学ぶ」（全5回）で�
 
 | 回 | 内容 | ディレクトリ |
 |---|---|---|
-| 1 | Modbus をPCの中で動かす | `01_modbus/` |
+| 1 | [Modbus をPCの中で動かす](https://zenn.dev/logicia32/articles/2026-07-29-industrial-net-1-modbus) | `01_modbus/` |
 | 2 | CANopen 前編・デバイスが自分の辞書を持つ | `02_canopen/` |
 | 3 | CANopen 後編・仮想サーボを回す | `02_canopen/` |
 | 4 | OPC UA 前編・情報モデルとサーバを立てる | `03_opcua/` |
