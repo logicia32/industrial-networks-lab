@@ -1,6 +1,6 @@
 # industrial-networks-lab
 
-産業用通信（Modbus / CANopen / OPC UA）を、ハードウェアを1つも買わずに PC の中だけで動かす自作ラボです。使うのはオープンソースのライブラリと、無料で読める仕様書だけ。線の上を流れるバイト列を、1バイトずつ確かめられます。
+産業用通信（Modbus / CANopen / OPC UA）を、ハードウェアがなくても PC の中だけで動かせる自作ラボです。使うのはオープンソースのライブラリと、無料で読める仕様書だけ。線の上を流れるバイト列を、1バイトずつ確かめられます。
 
 Zenn の連載「産業用通信をハードなしで学ぶ」（全5回）で使っているコード一式です。
 
@@ -10,7 +10,7 @@ Zenn の連載「産業用通信をハードなしで学ぶ」（全5回）で�
 | 2 | [CANopen 前編・デバイスが自分の辞書を持つ](https://zenn.dev/logicia32/articles/2026-07-29-industrial-net-2-canopen) | `02_canopen/` |
 | 3 | [CANopen 後編・仮想サーボを回す](https://zenn.dev/logicia32/articles/2026-07-29-industrial-net-3-servo) | `02_canopen/` |
 | 4 | [OPC UA 前編・情報モデルとサーバを立てる](https://zenn.dev/logicia32/articles/2026-07-29-industrial-net-4-opcua) | `03_opcua/` |
-| 5 | OPC UA 後編・3つを1つのゲートウェイに合流させる | `03_opcua/` |
+| 5 | [OPC UA 後編・3つを1つのゲートウェイに合流させる](https://zenn.dev/logicia32/articles/2026-07-29-industrial-net-5-gateway) | `03_opcua/` |
 
 ## 中身
 
